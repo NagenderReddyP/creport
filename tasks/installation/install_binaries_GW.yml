@@ -59,6 +59,15 @@
     chdir: "{{ sources_folder }}"
   become_user: "{{ inst_user }}"
   
+  - name: Set up owner and permissions for cogstartup.xml file      
+  file: 
+    path: "{{ item }}"
+    owner: "{{ inst_user }}"
+    group: "{{ inst_user }}"
+    mode: "0655"
+  with_items:
+    - "{{ configuration_folder }}/cogstartup.xml"
+  
   - name: Take a backup of cogstartup.xml in the path {{ configuration_folder }}
   copy:
     src: "{{ configuration_folder }}/cogstartup.xml"
