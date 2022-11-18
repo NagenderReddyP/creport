@@ -1,0 +1,22 @@
+- name: Insert config lines in .bashrc for {{ inst_user }} 
+  ansible.builtin.blockinfile:
+    dest: "/home/{{ inst_user }}/.bashrc"
+    block: |
+      # .bashrc
+      # Source global definitions
+      if [ -f /etc/bashrc ]; then
+          . /etc/bashrc
+      fi
+      # User specific environment
+      if ! [[ "$PATH" =~ "$HOME/.local/bin:$HOME/bin:" ]]
+      then
+          PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+      fi
+      export PATH
+      # Uncomment the following line if you don't like systemctl's auto-paging feature:
+      # export SYSTEMD_PAGER=
+      # User specific aliases and functions
+      export ORACLE_HOME=/opt/appl/oraclecl/product/19.3.0/db_1
+      export PATH=$ORACLE_HOME/bin:$PATH
+      export COGNOS_HOME=/opt/appl/cog117as
+      export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ORACLE_HOME/lib:$COGNOS_HOME/bin:$COGNOS_HOME/bin64

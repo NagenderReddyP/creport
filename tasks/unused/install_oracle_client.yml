@@ -1,0 +1,102 @@
+#-----------------------------------------------------------------------------------------
+#-----------                Include to install Oracle client             -----------------
+#-----------------------------------------------------------------------------------------
+# To be implemented
+
+- name: Install Pre-required packages
+  ansible.builtin.package: 
+    name: gcc, bc, binutils, elfutils-libelf-devel, elfutils-libelf-devel.i686, fontconfig-devel, fontconfig-devel.i686, glibc, glibc.i686, glibc-devel, glibc-devel.i686, ksh, libaio.i686, libaio, libaio-devel, libaio-devel.i686, libXrender.i686, libXrender, libX11.i686, libX11, libXau.i686, libXau, libXi.i686, libXi, libXtst.i686, libXtst, libgcc.i686, libgcc, libnsl.i686, libnsl, librdmacm, librdmacm.i686, libstdc++, libstdc++.i686, libstdc++-devel, libstdc++-devel.i686, libxcb, libxcb.i686, libibverbs, libibverbs.i686, make, policycoreutils, policycoreutils-python-utils, smartmontools, sysstat
+    state: latest
+
+- name: Create a directory for application /opt/appl/sources
+  file:
+    path: "/opt/appl/sources"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+- name: Delete /opt/appl/oraclecl if exists
+  file:
+    path: /opt/appl/oraclecl
+    state: absent
+
+#Change to appl folder by cd /opt/appl 
+#Create the folder for client installation under appl folder with root. 
+#mkdir oraclecl  
+#Change the ownership of folders to applicative accounts: 
+#chown cog117as:cog117as oraclecl 
+
+- name: Create a directory for the user root within the application folder /opt/appl/oraclecl
+  file:
+    path: "/opt/appl/oraclecl"
+    state: "directory"
+    owner: "cog117as"
+    group: "cog117as"
+    mode: "0755"
+
+#Copy the oracle installers to /opt/appl/sources folder from S3 bucket. 
+#aws s3 cp s3://creport-dev-s3-mgt/Cognos-src/oracle/LINUX_193000_client.zip .
+- name: Copy the oracle installers to /opt/appl/sources folder from S3 bucket
+  shell: "/usr/local/bin/aws s3 cp {{ s3_bucket }}/oracle/{{ item }} ."
+  with_items:
+    - "LINUX_193000_client.zip"
+  args: 
+    chdir: "/opt/appl/sources"
+
+#Unzip the oracle Installer Source : 
+#unzip LINUX_193000_client.zip 
+- name: Unzip the oracle Installer Source
+  ansible.builtin.unarchive:
+    src: /opt/appl/sources/LINUX_193000_client.zip
+    dest: /opt/appl/sources
+    mode: 0755
+    copy: no
+
+#Copy the response file from S3 to Sources:  
+#aws s3 cp s3://creport-dev-s3-mgt/Cognos-src/oracle/client_install.rsp .
+#Note : Ensure the destination path of install is empty. For ex: /opt/appl/oraclecl should be empty before Install. 
+
+- name: Copy analytic installer from s3 from {{ sources_folder }}
+  shell: "/usr/local/bin/aws s3 cp {{ s3_bucket }}/oracle/{{ item }} ."
+  with_items:
+    - "client_install.rsp"
+  args: 
+    chdir: "/opt/appl/sources"
+
+ 
+#Note : Switch to Application server user cog117as using sudo 
+#sudo su cog117as 
+#To start the installation of oracle client, execute the command below : 
+#Note: received incompatible OS message, so let’s mask the OS using below command. 
+#export CV_ASSUME_DISTID=OEL8.1 
+#Navigate to /opt/appl/sources/client32 
+
+
+- name: Run Oracle Client installer
+  shell: "./runInstaller -showProgress -silent -responseFile /opt/appl/sources/client_install.rsp"
+  become_user: "cog117as"
+  environment:
+    CV_ASSUME_DISTID: "OEL8.1"
+  args:
+    chdir: "/opt/appl/sources/client32"
+
+- name: Pause for 40 seconds to build app cache
+  ansible.builtin.pause:
+    seconds: 40
+ 
+#Once the install is complete, execute the following scripts as root. 
+#/opt/appl/oraclecl/app/oraInventory/orainstRoot.sh 
+#/opt/appl/oraclecl/product/19.3.0/db_1/root.sh 
+
+- name: Execute OraInstRoot and root.sh scripts as root
+  shell: "./orainstRoot.sh"
+  args:
+    chdir: "/opt/appl/oraclecl/app/oraInventory"
+  become_user: "root"
+
+- name: Execute OraInstRoot and root.sh scripts as root
+  shell: "./root.sh"
+  args:
+    chdir: "/opt/appl/oraclecl/product/19.3.0/db_1"
+  become_user: "root"

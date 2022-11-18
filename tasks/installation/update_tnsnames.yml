@@ -1,0 +1,9 @@
+- name: Add lines to tnsnames.ora
+  ansible.builtin.blockinfile:
+    dest: "/opt/appl/oraclecl/product/19.3.0/db_1/network/admin/tnsnames.ora"
+    block: |
+      LARA_QUA,LARA_QUA.WORLD,LRA_QRY_QUA11G, LRA_QRY_QUA11G.WORLD = (DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = lara-qua-db.cma-cgm.com)(PORT = 1802)) (CONNECT_DATA = (SERVICE_NAME = Query)))
+
+      OPERA_REC,OPERA_REC.WORLD = (DESCRIPTION = (ADDRESS = (PROTOCOL = TCP) (Host = mrs-dv-00014.cma-cgm.com) (Port = 1560)) (CONNECT_DATA = (service_name = OPERA)))
+      OPERA_DEV,OPERA_DEV.WORLD = (DESCRIPTION = (ADDRESS = (PROTOCOL = TCP) (Host = mrs-dv-00014.cma-cgm.com) (Port = 1561)) (CONNECT_DATA = (service_name = OPERAD)))
+    create: true

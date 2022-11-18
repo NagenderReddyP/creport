@@ -1,0 +1,9 @@
+#-----------------------------------------------------------------------------------------
+#-----------                Include to apply jinja templates             -----------------
+#-----------------------------------------------------------------------------------------
+- name: Apply jinja template {{ template }} to {{ file_dst}} configuration file.
+  ansible.builtin.template:
+    src: "{{ template }}"
+    dest: "{{ file_dst}}"
+    owner: "{{ owner }}"
+    mode: "{{ mode }}"

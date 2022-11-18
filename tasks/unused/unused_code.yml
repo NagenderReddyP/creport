@@ -1,0 +1,33 @@
+##################################################################################################
+# Here is the logic to identify the Analytics Server based on the IP
+# AS1Config.xml or AS2Config.xml
+#- name: Get all instances of Analytic servers using tags
+#  shell: /usr/local/bin/aws ec2 describe-tags --region {{ aws_region }} --filters "Name=key,Values=AppComponent" "Name=resource-type,Values=instance" "Name=value,Values=analytics"  --query "Tags[*].ResourceId" --output json
+#  register: analytics_instances
+#- set_fact:
+#     ais: "{{ analytics_instances.stdout }}"
+#- name: Identify the server using the local IP and the order 
+#  shell: /usr/local/bin/aws --region {{ aws_region }} ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=instance-id,Values={{ ais }}" --query 'Reservations[*].Instances[*].[PrivateIpAddress]' --output text | sort | grep -n $(hostname -i) | cut -d":" -f1
+#  register: selected_as
+#- name: Print
+#  debug:
+#    msg: "This Analytics server has been identified as: AS{{ selected_as.stdout }}"
+#- set_fact:
+#     asNumber: "{{ selected_as.stdout }}"
+##################################################################################################      
+#- name: Copy the Config file {{ component_type }}1Config.xml from S3 bucket to {{ configuration_folder }}
+#  shell: "/usr/local/bin/aws s3 cp {{ s3_bucket_configuration_files }}/{{ component_type }}{{ asNumber }}Config.xml {{ configuration_folder }}/{{ item }}"
+#  with_items:
+#    - "cogstartup.xml"
+##################################################################################################      
+
+- name: Copy the Config file {{ component_type }}1Config.xml from S3 bucket to {{ configuration_folder }}
+  shell: "/usr/local/bin/aws s3 cp {{ s3_bucket_configuration_files }}/{{ component_type }}Config.xml {{ configuration_folder }}/{{ item }}"
+  with_items:
+    - "cogstartup.xml"
+
+- name: Copy the Config file {{ component_type }}1Config.xml from S3 bucket to {{ configuration_folder }}
+  shell: "/usr/local/bin/aws s3 cp {{ s3_bucket_configuration_files }}/{{ component_type }}Config.xml {{ configuration_folder }}/{{ item }}"
+  with_items:
+    - "cogstartup.xml"
+

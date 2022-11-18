@@ -1,0 +1,73 @@
+#-------------------------------------------------------------------------------------------------------------
+#---------------- Master file for Analytics server installation              --------------------------------- 
+#-------------------------------------------------------------------------------------------------------------
+- hosts: localhost
+  connection: local
+  become: true
+  vars:
+    - component_type: "AS"
+    - inst_user: "cog117as"
+    - super_user: "root"
+    - swap_memory_size: 24
+    - aws_region: "eu-west-1"
+    - env: "dev"
+    - s3_bucket: "s3://creport-{{ env }}-s3-mgt"
+  #Temporary variables
+    - DBPORT: 23000
+    - DB_URI: "creportdev.cit9nbofg1l2.eu-west-1.rds.amazonaws.com:23000"
+    - DB_USER: "creport"
+    - DB_PWD: "GsoHnXHnvbSFcKKrcoit"
+
+  tasks:
+    # Add swap memory and activate it
+    - include_tasks: tasks/ec2_setup/create_swap_memory.yml
+      vars:
+        swap_size: "{{ swap_memory_size }}"
+    
+    #
+    - include_tasks: tasks/ansible_setup/create_ansible_user.yml
+    
+    # Install base packages
+    - include_tasks: tasks/packages/install_prerequired_package.yml
+    
+    # Create installation user
+    - include_tasks: tasks/users/create_user.yml
+      vars:
+        username: "{{ inst_user }}"
+    
+    #
+    - include_tasks: tasks/ec2_setup/set_ulimits.yml
+      vars:
+        - user: "{{ super_user}}"
+        - nofile_limit_for: "{{ inst_user }}"
+
+    # Add lines to .bashrc for {{ inst_user }}
+    - ansible.builtin.include_tasks: tasks/users/add_code_bashrc_AS.yml
+
+    # Install Oracle client
+    - ansible.builtin.include_tasks: tasks/installation/install_oracle_client.yml
+      vars:
+        - root_folder: "/opt"
+        - app_folder: "{{ root_folder }}/appl"
+        - sources_folder: "{{ app_folder }}/sources"        
+        - oracle_folder: "{{ app_folder }}/oraclecl"
+
+    # Add lines to tnsnames.ora
+    - ansible.builtin.include_tasks: tasks/installation/update_tnsnames.yml
+
+    # Install Analytics server binaries
+    - include_tasks: tasks/installation/install_binaries_AS.yml
+      vars:
+        - root_folder: "/opt"
+        - app_folder: "{{ root_folder }}/appl"
+        - sources_folder: "{{ app_folder }}/sources"
+        - drivers_folder: "{{ app_folder }}/{{ inst_user }}/drivers"
+        - configuration_folder: "{{ app_folder }}/{{ inst_user }}/configuration"
+        - s3_bucket_with_sources: "{{ s3_bucket }}/cognos"
+        - s3_bucket_configuration_files: "{{ s3_bucket_with_sources }}/ConfigFiles"
+
+
+
+    - name: Start Analytics server
+      shell: "source /home/{{inst_user}}/.bashrc && /opt/appl/{{ inst_user }}/bin64/cogconfig.sh -s"
+      become_user: "{{ inst_user }}"

@@ -1,0 +1,87 @@
+#-----------------------------------------------------------------------------------------
+#----------- Include for Gateway server installation             -----------------
+#-----------------------------------------------------------------------------------------
+- name: Create a directory for application for {{ inst_user }}
+  file:
+    path: "{{ app_folder }}"
+    state: "directory"
+    owner: "{{ super_user }}"
+    group: "{{ super_user }}"
+    mode: "0755"
+
+- name: Create a directory for the user {{ inst_user }} within the application folder {{ app_folder }}
+  file:
+    path: "{{ app_folder }}/{{ inst_user }}"
+    state: "directory"
+    owner: "{{ inst_user }}"
+    group: "{{ inst_user }}"
+    mode: "0755"
+
+- name: Create a directory for application
+  file:
+    path: "{{ sources_folder }}"
+    state: "directory"
+    owner: "{{ super_user }}"
+    group: "{{ super_user }}"
+    mode: "0755"
+
+- name: Copy GW installer from s3 to {{ sources_folder }}
+  shell: "/usr/local/bin/aws s3 sync {{ s3_bucket }}/last/cognos/ {{ sources_folder }}"
+
+
+- name: Set user owner and permisions for installation files
+  file:
+    path: "{{ sources_folder }}/{{ item }}"
+    owner: "{{ super_user }}" 
+    group: "{{ super_user }}"
+    mode: "0777"
+  with_items:
+    - "*.bin"
+    - "*.zip"
+    
+- name: Rename files to generic Name
+  shell: "mv *.bin analytics-installer.bin"
+  shell: "mv *.zip casrv.zip"
+
+- name: Copy GW properties file
+  template:
+    src: "{{ 'properties/' ~ item }}"
+    dest: "{{ sources_folder }}/{{ item }}"
+    owner: "{{ super_user }}"
+    group: "{{ super_user }}"
+    mode: "0777"
+  with_items:
+    - "GWInstall.properties"
+
+- name: Run Gateway installer for application server
+  shell: "./analytics-installer.bin -f {{ sources_folder }}/GWInstall.properties -i silent"
+  args:
+    chdir: "{{ sources_folder }}"
+  become_user: "{{ inst_user }}"
+  
+  - name: Take a backup of cogstartup.xml in the path {{ configuration_folder }}
+  copy:
+    src: "{{ configuration_folder }}/cogstartup.xml"
+    dest: "{{ configuration_folder }}/cogstartup.xml.bkp"
+    owner: "{{ inst_user }}"
+    group: "{{ inst_user }}"  
+    mode: 0655
+
+- name: Generate Config file from template
+  include_tasks: tasks/installation/apply_template.yml
+  vars:
+    - host_name_gw1: "{{ PrimaryGateway }}"
+    - host_name_gw2: "{{ SecondaryGateway }}"
+    - hostname_as1: "{{ PrimaryAnalytic }}"
+    - hostname_as2: "{{ SecondaryAnalytic }}"
+    - dispatcher_port: 9300
+    - dispatcher_uri_4_Gateway1: "http://{{ hostname_as1 }}:{{ dispatcher_port }}/p2pd/servlet/dispatch"
+    - dispatcher_uri_4_Gateway2: "http://{{ hostname_as2 }}:{{ dispatcher_port }}/p2pd/servlet/dispatch"
+    - template: "../templates/config/GWConfig.j2"
+    - file_dst: "{{ configuration_folder }}/cogstartup.xml"
+    - owner: "{{ inst_user }}"
+    - mode: 0655
+
+
+- name: Copy Images from s3 to {{ images_folder }}
+  shell: "/usr/local/bin/aws s3 sync {{ s3_bucket }}/last/images/ {{ images_folder }}"

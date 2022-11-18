@@ -1,0 +1,124 @@
+#-----------------------------------------------------------------------------------------
+#----------- Include for Analytics server installation                   -----------------
+#-----------------------------------------------------------------------------------------
+- name: Create a directory for application for {{ inst_user }}
+  file:
+    path: "{{ app_folder }}"
+    state: "directory"
+    owner: "{{ super_user }}"
+    group: "{{ super_user }}"
+    mode: "0755"
+
+- name: Create a directory for the user {{ inst_user }} within the application folder {{ app_folder }}
+  file:
+    path: "{{ app_folder }}/{{ inst_user }}"
+    state: "directory"
+    owner: "{{ inst_user }}"
+    group: "{{ inst_user }}"
+    mode: "0755"
+
+- name: Create a directory for application
+  file:
+    path: "{{ sources_folder }}"
+    state: "directory"
+    owner: "{{ super_user }}"
+    group: "{{ super_user }}"
+    mode: "0755"
+
+- name: Copy analytic installer from s3 from {{ sources_folder }}
+  shell: "/usr/local/bin/aws s3 cp {{ s3_bucket }}/Cognos-src/11.1.7FP5/{{ item }} ."
+  with_items:
+    - "analytics-installer-2.2.16-linuxx86.bin"
+    - "casrv-11.1.7-2205311318-linuxi38664h.zip"
+  args: 
+    chdir: "{{ sources_folder }}"
+    creates: "{{ item }}"
+  become_user: "{{ super_user }}"
+
+- name: Set user owner and permisions for installation files
+  file:
+    path: "{{ sources_folder }}/{{ item }}"
+    owner: "{{ super_user }}" 
+    group: "{{ super_user }}"
+    mode: "0777"
+  with_items:
+    - "analytics-installer-2.2.16-linuxx86.bin"
+    - "casrv-11.1.7-2205311318-linuxi38664h.zip"
+
+- name: Copy AS properties file
+  template:
+    src: "{{ 'properties/' ~ item }}"
+    dest: "{{ sources_folder }}/{{ item }}"
+    owner: "{{ super_user }}"
+    group: "{{ super_user }}"
+    mode: "0777"
+  with_items:
+    - "ASInstall.properties"
+
+- name: Run Analytics installer for application server
+  shell: "./analytics-installer-2.2.16-linuxx86.bin -f {{ sources_folder }}/{{ component_type }}Install.properties -i silent"
+  args:
+    chdir: "{{ sources_folder }}"
+  become_user: "{{ inst_user }}"
+
+- name: Create a directory for drivers
+  file:
+    path: "{{ drivers_folder }}"
+    state: "directory"
+    owner: "{{ super_user }}"
+    group: "{{ super_user }}"
+    mode: "0755"
+
+- name: Copy drivers files from s3
+  shell: "/usr/local/bin/aws s3 cp {{ s3_bucket_with_sources }}/11.1.7FP5/{{ item }} ."
+  args:
+    chdir: "{{ drivers_folder }}"
+  with_items:
+    - "ojdbc8.jar"
+
+- name: Generate Config file from template
+  include_tasks: tasks/installation/apply_template.yml
+  vars:
+    - dispatcher_port: 9300
+    - external_dispatcher_uri: "http://{{ FQDN }}:{{ dispatcher_port }}/p2pd/servlet/dispatch"
+    - internal_dispatcher_uri: "http://{{ FQDN }}:{{ dispatcher_port }}/p2pd/servlet/dispatch"
+    - dispatcher_uri_4_external_apps: "http://{{ FQDN }}:{{ dispatcher_port }}/bi/v1/disp"
+    - content_manager_uri: "http://{{ CM_ALB_endpoint }}:{{ dispatcher_port }}/p2pd/servlet"
+    - group_name: "GRP_{{ prj | upper }}{{ env }}" # CREPORTDEV
+    - group_contact_host: "{{ CM_INSTANCE }}"
+    - member_coordination_host: "{{ FQDN }}"
+    - dns_name: "{{ FQDN }}"
+    - ip_address: "{{ IPV4 }}"
+    - database_uri: "{{ DB_URI }}:{{ DB_PORT }}"
+    - db_user: "{{ DB_USER }}" 
+    - db_pwd: "{{ DB_PWD }}"
+    - service_name: "{{ prj | lower }}"
+    - template: "../templates/config/ASConfig.j2"
+    - file_dst: "{{ configuration_folder }}/cogstartup.xml"
+    - owner: "{{ inst_user }}"
+    - mode: 0655
+
+- name: Set up owner and permissions for ojdbc8.jar file      
+  file: 
+    path: "{{ item }}"
+    owner: "{{ inst_user }}"
+    group: "{{ inst_user }}"
+  with_items:
+    - "{{ drivers_folder }}/ojdbc8.jar"
+
+- name: Set up owner and permissions for cogstartup.xml file      
+  file: 
+    path: "{{ item }}"
+    owner: "{{ inst_user }}"
+    group: "{{ inst_user }}"
+    mode: "0655"
+  with_items:
+    - "{{ configuration_folder }}/cogstartup.xml"
+
+- name: Take a backup of cogstartup.xml in the path {{ configuration_folder }}
+  copy:
+    src: "{{ configuration_folder }}/cogstartup.xml"
+    dest: "{{ configuration_folder }}/cogstartup.xml.bkp"
+    owner: "{{ inst_user }}"
+    group: "{{ inst_user }}"  
+    mode: 0655

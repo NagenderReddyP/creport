@@ -1,0 +1,27 @@
+- name: Setting-up nofles and nproc limit for {{ user }} 
+  pam_limits:
+    domain: "{{ user }}"
+    limit_type: "{{ item.limit_type }}"
+    limit_item: "{{ item.limit_item }}"
+    value: "{{item.value}}"
+  with_items:
+    - { limit_type: '-', limit_item: 'cpu', value: 'unlimited'  }
+    - { limit_type: '-', limit_item: 'fsize', value: 'unlimited'  }
+    - { limit_type: '-', limit_item: 'nproc', value: 'unlimited'  }
+    - { limit_type: '-', limit_item: 'stack', value: 'unlimited'  }
+    - { limit_type: '-', limit_item: 'as', value: 'unlimited'  }
+    - { limit_type: '-', limit_item: 'rss', value: 'unlimited'  }
+
+- name: Update /etc/security/limits.conf
+  lineinfile:
+    path: /etc/security/limits.conf
+    state: present
+    line: "{{ item }}"
+  with_items:
+  - 'root soft nofile 32768'
+  - 'root hard nofile 65536'
+  - '{{ nofile_limit_for }} soft nofile 32768'
+  - '{{ nofile_limit_for }} hard nofile 32768'
+
+- name: reload settings from all system configuration files
+  shell: sysctl --system

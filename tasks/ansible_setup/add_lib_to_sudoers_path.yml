@@ -1,0 +1,10 @@
+- name: Test for line
+  shell: grep  "secure_path" /etc/sudoers | grep -c "/usr/local/bin" || true
+  register: path_exists 
+- name: Add /usr/local/bin/ path to sudoers
+  lineinfile:
+    path: '/etc/sudoers'
+    regexp: '^(.*secure_path.*)'
+    backrefs: yes
+    line: '\1:/usr/local/bin'
+  when: path_exists.stdout == "0"

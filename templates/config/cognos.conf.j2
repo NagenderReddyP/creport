@@ -1,0 +1,115 @@
+# Licensed Materials - Property of IBM
+# IBM Cognos Products: gate
+# (C) Copyright IBM Corp. 2017, 2020
+# US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+#
+# this is a sample cognos.conf for Apache 2.4.  To use it, rename or
+# copy it to "cognos.conf"
+#
+
+LoadModule headers_module modules/mod_headers.so
+LoadModule rewrite_module modules/mod_rewrite.so
+LoadModule expires_module modules/mod_expires.so
+LoadModule proxy_module modules/mod_proxy.so
+LoadModule proxy_http_module modules/mod_proxy_http.so
+LoadModule proxy_balancer_module modules/mod_proxy_balancer.so
+LoadModule deflate_module modules/mod_deflate.so
+LoadModule filter_module modules/mod_filter.so
+LoadModule slotmem_shm_module modules/mod_slotmem_shm.so
+LoadModule slotmem_plain_module modules/mod_slotmem_plain.so
+LoadModule lbmethod_byrequests_module modules/mod_lbmethod_byrequests.so
+LoadModule proxy_wstunnel_module modules/mod_proxy_wstunnel.so
+LoadModule dav_module modules/mod_dav.so
+LoadModule dav_fs_module modules/mod_dav_fs.so
+LoadModule dav_lock_module modules/mod_dav_lock.so
+
+<IfModule mod_expires.c>
+        <FilesMatch "\.(jpe?g|png|gif|js|css|json|html|woff2?|template)$">
+                ExpiresActive On
+                ExpiresDefault "access plus 1 day"
+        </FilesMatch>
+</IfModule>
+
+<Directory "/opt/appl/cog117gw/webcontent">
+        <IfModule mod_deflate>
+                AddOutputFilterByType DEFLATE text/html application/json text/css application/javascript
+        </IfModule>
+        Options Indexes MultiViews
+        AllowOverride None
+        Require all granted
+</Directory>
+
+<IfModule mod_dav_fs.c>
+# Location of the WebDAV lock database.
+DAVLockDB /var/lib/dav/lockdb
+</IfModule>
+
+
+<Directory "/opt/appl/cog117gw/webcontent/bi/samples/images">
+Options FollowSymLinks
+AllowOverride FileInfo
+Order Allow,Deny
+Allow from All
+Dav On
+</Directory>
+
+#Set up a cluster for load-balancing
+# Include all ICA servers that have the ICA Application server components installed and configured.
+# Note: do not include ICA servers that are used to run the Content Manager service.
+<Proxy balancer://mycluster>
+        BalancerMember http://{{ hostname_as1 }}:{{dispatcher_port}} route=1
+        BalancerMember http://{{ hostname_as2 }}:{{dispatcher_port}} route=2
+</Proxy>
+
+# UI to monitor/configure load balancer
+<Location /ibmcognos/balancer-manager>
+   SetHandler balancer-manager
+</Location>
+
+#Alias /ibmcognos "/opt/appl/cog117gw/webcontent"
+#Alias /cognos8/samples/images "/opt/appl/cog117gw/webcontent/bi/samples/images"
+#Alias /crn/samples/images "/opt/appl/cog117gw/webcontent/bi/samples/images"
+
+ScriptAlias /ibmcognos/cgi-bin /opt/appl/cog117gw/cgi-bin
+Alias /ibmcognos "/opt/appl/cog117gw/webcontent"
+Alias /cognos8/samples/images "/opt/appl/cog117gw/webcontent/bi/samples/images"
+Alias /crn/samples/images "/opt/appl/cog117gw/webcontent/bi/samples/images"
+Alias /cognos10/samples/images "/opt/appl/cog117gw/webcontent/bi/samples/images"
+
+RewriteEngine On
+# Send default URL to service
+RewriteRule ^/ibmcognos/bi/($|[^/.]+(\.jsp)(.*)?) balancer://mycluster/bi/$1$3 [P]
+RewriteRule ^/ibmcognos/bi/(login(.*)?) balancer://mycluster/bi/$1 [P]
+
+# Rewrite Event Studio static references
+RewriteCond %{HTTP_REFERER} v1/disp [NC,OR]
+RewriteCond %{HTTP_REFERER} (ags|cr1|prompting|ccl|common|skins|ps|cps4)/(.*)\.css [NC]
+RewriteRule ^/ibmcognos/bi/(ags|cr1|prompting|ccl|common|skins|ps|cps4)/(.*) /ibmcognos/$1/$2 [PT,L]
+
+# Rewrite Saved-Output and Viewer static references
+RewriteRule ^/ibmcognos/bi/rv/(.*)$ /ibmcognos/rv/$1 [PT,L]
+
+# Rewrite jupyter websocket requests directly to jupyter server
+# uncomment following line and substitute ws://ica-jupyter-host.domain:8000 with target protocol (ws:// or wss://) , FQDN of host or ip address, and port for the associated jupyter server
+#RewriteRule ^/ibmcognos/bi/v1/jupyter/(user/[^/]*)/(api/kernels/[^/]+/channels)(.*) ws://ica-jupyter-host.domain:8000/bi/v1/jupyter/$1/$2$3 [P,L]
+
+# Define cognos location
+<Location /ibmcognos>
+        RequestHeader set X-BI-PATH /ibmcognos/bi/v1
+
+        # To specify a specific CA namespace, uncomment the following line and change the NSID_example to your namespace id.
+        # Note: the namespace id is case sensitive.
+
+        # RequestHeader set CAM-Namespace NSID_example
+</Location>
+
+# Route CA REST service requests through proxy with load balancing
+<Location /ibmcognos/bi/v1>
+        ProxyPass balancer://mycluster/bi/v1
+</Location>
+
+# To enable the stickysession, uncomment the following lines to replace the above section
+#<Location /ibmcognos/bi/v1>
+#       Header add Set-Cookie "ROUTEID=.%{BALANCER_WORKER_ROUTE}e; path=/ibmcognos/bi/v1" env=BALANCER_ROUTE_CHANGED
+#       ProxyPass balancer://mycluster/bi/v1 stickysession=ROUTEID
+#</Location>

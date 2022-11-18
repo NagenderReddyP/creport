@@ -1,0 +1,4 @@
+- name: Install Pre-required packages
+  ansible.builtin.package:
+    name: cron
+    state: latest

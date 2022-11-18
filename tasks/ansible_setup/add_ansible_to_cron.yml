@@ -1,0 +1,6 @@
+- name: Install cron job (Ansible-pull)
+  cron:
+    user: ansible
+    name: "Ansible provision"
+    minute: "*/10"
+    job: "/usr/bin/ansible-pull -o -U https://github.com/esteban-santiago/ansible-pull.git $(aws ec2 describe-tags --region eu-west-1 --filters \"Name=resource-id,Values=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)\" \"Name=key,Values=Name\" --output text | cut -f5).yml > /dev/null"
